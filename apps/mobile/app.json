@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "PawPals Go",
+    "slug": "pawpals-go",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "scheme": "pawpals",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        { "photosPermission": "我們需要存取您的相簿以上傳照片。" }
+      ],
+      [
+        "expo-location",
+        { "locationAlwaysAndWhenInUsePermission": "我們需要您的位置來顯示附近的毛孩。" }
+      ],
+      [
+        "expo-camera",
+        { "cameraPermission": "我們需要相機權限來掃描 QR Code 完成簽到。" }
+      ]
+    ],
+    "splash": {
+      "backgroundColor": "#09090b"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.pawpals.go"
+    },
+    "android": {
+      "adaptiveIcon": { "backgroundColor": "#09090b" },
+      "package": "com.pawpals.go"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/icon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

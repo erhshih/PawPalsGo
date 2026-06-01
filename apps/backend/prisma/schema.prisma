@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  LOVER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum SwipeDirection {
+  LIKE
+  PASS
+  SUPER_LIKE
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  CHECKING_IN
+  COMPLETED
+  CANCELLED_BENIGN
+  CANCELLED_PENALTY
+}
+
+enum WalletTransactionType {
+  TOPUP
+  DEBIT
+  CREDIT
+  ESCROW
+  ESCROW_RELEASE
+}
+
+enum PhotoKind {
+  closeup
+  owner
+  bw
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  gender       Gender?
+  displayName  String?
+  bio          String?
+  interests    String[]
+  education    String?
+  zodiac       String?
+  jobTitle     String?
+  company      String?
+  school       String?
+  city         String?
+  height       Int?
+  avatarUrl    String?
+  location     Unsupported("geography(Point, 4326)")?
+  createdAt    DateTime @default(now())
+
+  pets               Pet[]
+  swipesGiven        Swipe[]             @relation("swiper")
+  swipesReceived     Swipe[]             @relation("target")
+  matchesA           Match[]             @relation("userA")
+  matchesB           Match[]             @relation("userB")
+  messages           Message[]
+  wallet             Wallet?
+  walletTransactions WalletTransaction[]
+  meetingsInitiated  Meeting[]
+}
+
+model Pet {
+  id        String    @id @default(uuid())
+  ownerId   String
+  owner     User      @relation(fields: [ownerId], references: [id])
+  name      String
+  breed     String
+  bio       String
+  tags      String[]
+  birthDate DateTime?
+  createdAt DateTime  @default(now())
+
+  photos Photo[]
+}
+
+model Photo {
+  id        String    @id @default(uuid())
+  petId     String
+  pet       Pet       @relation(fields: [petId], references: [id])
+  url       String
+  kind      PhotoKind
+  sortOrder Int
+  createdAt DateTime  @default(now())
+}
+
+model Swipe {
+  id        String         @id @default(uuid())
+  swiperId  String
+  targetId  String
+  direction SwipeDirection
+  createdAt DateTime       @default(now())
+
+  swiper User @relation("swiper", fields: [swiperId], references: [id])
+  target User @relation("target", fields: [targetId], references: [id])
+
+  @@unique([swiperId, targetId])
+}
+
+model Match {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA    User      @relation("userA", fields: [userAId], references: [id])
+  userB    User      @relation("userB", fields: [userBId], references: [id])
+  messages Message[]
+  meetings Meeting[]
+
+  @@unique([userAId, userBId])
+}
+
+model Meeting {
+  id          String        @id @default(uuid())
+  matchId     String
+  initiatorId String
+  scheduledAt DateTime
+  status      MeetingStatus @default(SCHEDULED)
+  escrow      Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  match     Match @relation(fields: [matchId], references: [id])
+  initiator User  @relation(fields: [initiatorId], references: [id])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  matchId   String
+  senderId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  match  Match @relation(fields: [matchId], references: [id])
+  sender User  @relation(fields: [senderId], references: [id])
+}
+
+model Wallet {
+  id      String @id @default(uuid())
+  userId  String @unique
+  balance Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model WalletTransaction {
+  id              String                @id @default(uuid())
+  userId          String
+  type            WalletTransactionType
+  amount          Int
+  relatedEntityId String?
+  createdAt       DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

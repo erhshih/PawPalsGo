@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PawPals Go</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="module">
+  import {
+    X, Heart, Star, Sliders, MessageCircle, Compass, User,
+    Send, MapPin, ChevronLeft, Beef, Sparkles, Check, Plus,
+    Bell, Search, Home, Dog, Cat, ArrowRight, Camera,
+    Calendar, Clock, RotateCcw, ShieldCheck, AlertTriangle, QrCode
+  } from "https://esm.sh/lucide-react@0.439.0?deps=react@18.3.1";
+  window.Lucide = { X, Heart, Star, Sliders, MessageCircle, Compass, User, Send, MapPin, ChevronLeft, Beef, Sparkles, Check, Plus, Bell, Search, Home, Dog, Cat, ArrowRight, Camera, Calendar, Clock, RotateCcw, ShieldCheck, AlertTriangle, QrCode };
+  window.dispatchEvent(new Event("lucide-ready"));
+</script>
+<style>
+  html, body { background:#000; color:#fff; font-family: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, "PingFang TC", "Noto Sans TC", sans-serif; -webkit-font-smoothing:antialiased; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .hairline { border-width: 0.5px; }
+  .no-scrollbar::-webkit-scrollbar { display:none; }
+  .no-scrollbar { scrollbar-width: none; }
+  @keyframes swipeLeft  { to { transform: translate(-140%, 40px) rotate(-22deg); opacity: 0; } }
+  @keyframes swipeRight { to { transform: translate( 140%, 40px) rotate( 22deg); opacity: 0; } }
+  @keyframes swipeUp    { to { transform: translate(0, -120%) scale(.95); opacity: 0; } }
+  @keyframes fadeIn     { from { opacity:0; transform: translateY(8px) } to { opacity:1; transform:none } }
+  @keyframes pop        { 0%{transform:scale(.92);opacity:0} 100%{transform:scale(1);opacity:1} }
+  .anim-fadeIn { animation: fadeIn .35s ease both; }
+  .anim-pop    { animation: pop .22s ease-out both; }
+  .swipe-left  { animation: swipeLeft  .35s ease-in forwards; }
+  .swipe-right { animation: swipeRight .35s ease-in forwards; }
+  .swipe-up    { animation: swipeUp    .35s ease-in forwards; }
+  .bg-noise { background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px); background-size: 3px 3px; }
+  @keyframes scanY { 0%{top:0;opacity:.4} 50%{opacity:1} 100%{top:100%;opacity:.4} }
+  .scan-line { animation: scanY 1.8s ease-in-out infinite; }
+  @keyframes pulseRing { 0%{transform:scale(.92);opacity:.6} 70%{transform:scale(1.05);opacity:0} 100%{opacity:0} }
+  .pulse-ring { animation: pulseRing 1.6s ease-out infinite; }
+</style>
+</head>
+<body class="bg-black">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react" src="data.jsx"></script>
+  <script type="text/babel" data-presets="react" src="welcome.jsx"></script>
+  <script type="text/babel" data-presets="react" src="onboarding.jsx"></script>
+  <script type="text/babel" data-presets="react" src="swipe.jsx"></script>
+  <script type="text/babel" data-presets="react" src="meeting.jsx"></script>
+  <script type="text/babel" data-presets="react" src="topup.jsx"></script>
+  <script type="text/babel" data-presets="react" src="chat.jsx"></script>
+  <script type="text/babel" data-presets="react" src="app.jsx"></script>
+</body>
+</html>
