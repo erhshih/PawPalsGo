@@ -165,6 +165,14 @@ export default function ChatDetailPage() {
   const lastMyMessage = myMessages[myMessages.length - 1];
   const isLastRead = lastMyMessage && partnerReadAt && partnerReadAt >= lastMyMessage.createdAt;
 
+  function formatTime(iso: string) {
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const hhmm = d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return sameDay ? hhmm : `${d.getMonth() + 1}/${d.getDate()} ${hhmm}`;
+  }
+
   return (
     <div className="flex flex-col h-full w-full">
       {/* Header */}
@@ -238,8 +246,11 @@ export default function ChatDetailPage() {
               }`}>
                 {msg.text}
               </div>
+              <span className={`text-[10px] text-zinc-500 mt-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
+                {formatTime(msg.createdAt)}
+              </span>
               {isLastMine && isLastRead && (
-                <div className="flex items-center gap-1 mt-1 mr-1">
+                <div className="flex items-center gap-1 mr-1">
                   <CheckCheck size={12} className="text-zinc-400" />
                   <span className="text-[10px] text-zinc-500">已讀</span>
                 </div>

@@ -258,7 +258,7 @@ export default function ProfilePage() {
     router.push('/login');
   }
 
-  const photoSrc = avatarUrl ? `${API_URL}${avatarUrl}` : null;
+  const photoSrc = avatarUrl ? (avatarUrl.startsWith('http') ? avatarUrl : `${API_URL}${avatarUrl}`) : null;
   const genderLabel = gender === 'MALE' ? '男' : gender === 'FEMALE' ? '女' : gender === 'OTHER' ? '其他' : '';
 
   // Profile completion

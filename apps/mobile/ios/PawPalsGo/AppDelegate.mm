@@ -2,24 +2,15 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
+#import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 
-@implementation AppDelegate
+// Provides all RCTReactNativeFactoryDelegate defaults (JS runtime, root view, etc.)
+// AppDelegate cannot extend RCTDefaultReactNativeFactoryDelegate directly because
+// it must extend EXAppDelegateWrapper for Expo subscriber support.
+@interface PawPalsReactDelegate : RCTDefaultReactNativeFactoryDelegate
+@end
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
-{
-  self.moduleName = @"main";
-
-  // You can add your custom initial props in the dictionary below.
-  // They will be passed down to the ViewController used by React Native.
-  self.initialProps = @{};
-
-  return [super application:application didFinishLaunchingWithOptions:launchOptions];
-}
-
-- (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
-{
-  return [self bundleURL];
-}
+@implementation PawPalsReactDelegate
 
 - (NSURL *)bundleURL
 {
@@ -28,6 +19,49 @@
 #else
   return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
 #endif
+}
+
+- (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
+{
+  return [self bundleURL];
+}
+
+@end
+
+// Use ivars instead of @property to avoid ObjC synthesis conflicts
+// with EXAppDelegateWrapper's readonly 'reactDelegate' property.
+@interface AppDelegate () {
+  PawPalsReactDelegate *_rnDelegate;
+  RCTReactNativeFactory *_rnFactory;
+}
+@end
+
+@implementation AppDelegate
+
+@synthesize window = _window;
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+{
+  self.moduleName = @"main";
+  self.initialProps = @{};
+
+  // Run Expo subscriber chain (FileSystem, Linking, ExpoHead, etc.)
+  [super application:application didFinishLaunchingWithOptions:launchOptions];
+
+  // Expo SDK 54: EXAppDelegateWrapper no longer extends RCTAppDelegate,
+  // so [super application:...] no longer initializes React Native.
+  // PawPalsReactDelegate (extends RCTDefaultReactNativeFactoryDelegate)
+  // provides all required factory delegate implementations.
+  _rnDelegate = [PawPalsReactDelegate new];
+  _rnDelegate.dependencyProvider = [RCTAppDependencyProvider new];
+
+  self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+  _rnFactory = [[RCTReactNativeFactory alloc] initWithDelegate:_rnDelegate];
+  [_rnFactory startReactNativeWithModuleName:@"main"
+                                    inWindow:self.window
+                               launchOptions:launchOptions];
+
+  return YES;
 }
 
 // Linking API
@@ -41,19 +75,17 @@
   return [super application:application continueUserActivity:userActivity restorationHandler:restorationHandler] || result;
 }
 
-// Explicitly define remote notification delegates to ensure compatibility with some third-party libraries
+// Remote notification delegates for third-party library compatibility
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
 {
   return [super application:application didRegisterForRemoteNotificationsWithDeviceToken:deviceToken];
 }
 
-// Explicitly define remote notification delegates to ensure compatibility with some third-party libraries
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error
 {
   return [super application:application didFailToRegisterForRemoteNotificationsWithError:error];
 }
 
-// Explicitly define remote notification delegates to ensure compatibility with some third-party libraries
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
 {
   return [super application:application didReceiveRemoteNotification:userInfo fetchCompletionHandler:completionHandler];

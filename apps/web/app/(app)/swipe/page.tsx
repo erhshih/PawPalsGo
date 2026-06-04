@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { api } from '@/lib/api';
 import { useWalletStore } from '@/stores/wallet';
@@ -24,6 +24,11 @@ export default function SwipePage() {
   const [showTreat, setShowTreat] = useState(false);
   const [matchedName, setMatchedName] = useState<string | null>(null);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
+  const [locationDenied, setLocationDenied] = useState(false);
+  // 拖曳狀態
+  const [drag, setDrag] = useState({ x: 0, y: 0, dragging: false });
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const swiping = useRef(false);
   const { balance, deductBalance } = useWalletStore();
   const { userId, loadFromStorage } = useAuthStore();
   const { radius, getGenderParam, getRoleParam } = useDiscoverPrefs();
@@ -32,18 +37,30 @@ export default function SwipePage() {
 
   useEffect(() => {
     async function init() {
-      try {
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-              await api.patch('/users/me/location', { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(() => {});
-              resolve();
-            },
-            () => resolve(),
-            { timeout: 5000 },
-          );
-        });
-      } catch {}
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        let permissionGranted = false;
+        try {
+          const perm = await navigator.permissions.query({ name: 'geolocation' });
+          permissionGranted = perm.state === 'granted';
+        } catch {
+          // permissions API 不支援時（舊瀏覽器）跳過
+        }
+
+        if (permissionGranted) {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              async (pos) => {
+                await api.patch('/users/me/location', { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(() => {});
+                resolve();
+              },
+              () => resolve(),
+              { timeout: 5000 },
+            );
+          });
+        } else {
+          setLocationDenied(true);
+        }
+      }
       fetchNextPage(1);
     }
     init();
@@ -84,8 +101,17 @@ export default function SwipePage() {
   }
 
   async function swipe(direction: 'LIKE' | 'PASS' | 'SUPER_LIKE') {
+    if (swiping.current) return;
     const top = queue[0];
     if (!top) return;
+    swiping.current = true;
+    // 飛出動畫
+    const toX = direction === 'LIKE' ? 600 : direction === 'PASS' ? -600 : 0;
+    const toY = direction === 'SUPER_LIKE' ? -600 : 0;
+    setDrag({ x: toX, y: toY, dragging: false });
+    await new Promise((r) => setTimeout(r, 280));
+    setDrag({ x: 0, y: 0, dragging: false });
+    swiping.current = false;
     setQueue((q) => q.slice(1));
     if (queue.length < 3) fetchNextPage();
     try {
@@ -98,6 +124,32 @@ export default function SwipePage() {
         setMatchedName(matchRes?.data?.partner?.displayName ?? matchRes?.data?.partner?.email ?? '對方');
       }
     } catch {}
+  }
+
+  // 拖曳 handlers
+  function onPointerDown(e: React.PointerEvent) {
+    if (swiping.current) return;
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    setDrag({ x: 0, y: 0, dragging: true });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!dragStart.current) return;
+    setDrag({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y, dragging: true });
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    if (!dragStart.current) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    dragStart.current = null;
+    const SWIPE_X = 100;
+    const SWIPE_Y = 80;
+    if (dx > SWIPE_X) { swipe('LIKE'); }
+    else if (dx < -SWIPE_X) { swipe('PASS'); }
+    else if (dy < -SWIPE_Y) { swipe('SUPER_LIKE'); }
+    else { setDrag({ x: 0, y: 0, dragging: false }); }
   }
 
   async function sendTreat() {
@@ -115,7 +167,8 @@ export default function SwipePage() {
   }
 
   const top = queue[0];
-  const photoSrc = top?.avatarUrl ? `${API_URL}${top.avatarUrl}` : null;
+  const rawUrl = top?.avatarUrl;
+  const photoSrc = rawUrl ? (rawUrl.startsWith('http') ? rawUrl : `${API_URL}${rawUrl}`) : null;
   const topDist = top ? distanceMap.get(top.id) : undefined;
   const distLabel = topDist != null
     ? topDist < 1000 ? `${Math.round(topDist)} m` : `${(topDist / 1000).toFixed(1)} km`
@@ -149,9 +202,21 @@ export default function SwipePage() {
         {/* Card */}
         <div className="flex-1 min-h-0">
           {top ? (
-            <div className="relative rounded-3xl overflow-hidden bg-zinc-900 border border-zinc-800 h-full w-full">
+            <div
+              key={top.id}
+              className="relative rounded-3xl overflow-hidden bg-zinc-900 border border-zinc-800 h-full w-full cursor-grab active:cursor-grabbing select-none"
+              style={{
+                transform: `translateX(${drag.x}px) translateY(${drag.y * 0.3}px) rotate(${drag.x * 0.06}deg)`,
+                transition: drag.dragging ? 'none' : 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+                touchAction: 'none',
+              }}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={() => { dragStart.current = null; setDrag({ x: 0, y: 0, dragging: false }); }}
+            >
               {photoSrc ? (
-                <Image src={photoSrc} alt={top.displayName ?? ''} fill className="object-cover" unoptimized />
+                <Image src={photoSrc} alt={top.displayName ?? ''} fill className="object-cover pointer-events-none" unoptimized />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
                   <User size={80} className="text-zinc-600" strokeWidth={1} />
@@ -160,6 +225,25 @@ export default function SwipePage() {
 
               {/* Gradient */}
               <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black via-black/70 to-transparent" />
+
+              {/* LIKE / NOPE stamps */}
+              {drag.x > 30 && (
+                <div className="absolute top-10 left-5 z-20 border-2 border-green-400 rounded-xl px-4 py-1.5 -rotate-12">
+                  <span className="text-green-400 text-2xl font-black tracking-widest">LIKE</span>
+                </div>
+              )}
+              {drag.x < -30 && (
+                <div className="absolute top-10 right-5 z-20 border-2 border-red-500 rounded-xl px-4 py-1.5 rotate-12">
+                  <span className="text-red-500 text-2xl font-black tracking-widest">NOPE</span>
+                </div>
+              )}
+              {drag.y < -40 && Math.abs(drag.x) < 40 && (
+                <div className="absolute top-1/3 inset-x-0 flex justify-center z-20">
+                  <div className="border-2 border-blue-400 rounded-xl px-5 py-1.5">
+                    <span className="text-blue-400 text-2xl font-black tracking-widest">SUPER</span>
+                  </div>
+                </div>
+              )}
 
               {/* Role badge */}
               <div className="absolute top-3 left-3 z-10 rounded-full bg-black/50 border border-white/20 px-2.5 py-1">
@@ -203,9 +287,18 @@ export default function SwipePage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col h-full items-center justify-center rounded-3xl border border-zinc-800 bg-zinc-900 gap-2">
-              <p className="text-zinc-500 text-sm">附近暫時沒有新朋友</p>
-              <p className="text-zinc-600 text-xs">試試調整探索距離或身分篩選</p>
+            <div className="flex flex-col h-full items-center justify-center rounded-3xl border border-zinc-800 bg-zinc-900 gap-2 px-6 text-center">
+              {locationDenied ? (
+                <>
+                  <p className="text-zinc-400 text-sm">請開啟瀏覽器位置權限</p>
+                  <p className="text-zinc-600 text-xs">開啟後重新整理頁面，即可看見附近的毛孩</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-zinc-500 text-sm">附近暫時沒有新朋友</p>
+                  <p className="text-zinc-600 text-xs">試試調整探索距離或身分篩選</p>
+                </>
+              )}
             </div>
           )}
         </div>

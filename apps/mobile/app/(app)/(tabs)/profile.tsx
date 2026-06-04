@@ -111,7 +111,8 @@ export default function ProfileScreen() {
   );
 
   const name = profile?.displayName || profile?.email?.split('@')[0] || '';
-  const photoUri = profile?.avatarUrl ? `${API_URL}${profile.avatarUrl}` : null;
+  const rawUrl = profile?.avatarUrl;
+  const photoUri = rawUrl ? (rawUrl.startsWith('http') ? rawUrl : `${API_URL}${rawUrl}`) : null;
   const { pct, missing } = calcCompletion(profile);
 
   return (

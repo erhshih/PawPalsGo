@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Image, Dimensions, Modal } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withSpring, withTiming,
@@ -19,7 +19,6 @@ import { useDiscoverPrefs } from '../../../stores/discoverPrefs';
 import { useRouter } from 'expo-router';
 
 const { width: SW, height: SH } = Dimensions.get('window');
-const CARD_H = SH * 0.68;
 const SWIPE_THRESHOLD = SW * 0.30;
 const SUPER_THRESHOLD = 120;
 
@@ -115,12 +114,15 @@ export default function SwipeDeckScreen() {
   const [iap, setIap] = useState(false);
   const [matchModal, setMatchModal] = useState<MatchDto | null>(null);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
+  const [cardAreaH, setCardAreaH] = useState(SH * 0.75);
   const swiping = useRef(false);
+  const prevTopId = useRef<string | undefined>(undefined);
 
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const rot = useSharedValue(0);
   const cardOpacity = useSharedValue(1);
+  const backScale = useSharedValue(0.95);
 
   useEffect(() => {
     async function init() {
@@ -170,10 +172,31 @@ export default function SwipeDeckScreen() {
     } catch {}
   }
 
+  // useLayoutEffect 在 paint 前執行，確保新卡片第一幀就不透明，不黑畫面
+  useLayoutEffect(() => {
+    const topId = queue[0]?.id;
+    if (!topId || topId === prevTopId.current) return;
+    prevTopId.current = topId;
+    tx.value = 0; ty.value = 0; rot.value = 0;
+    cardOpacity.value = 1;
+  }, [queue[0]?.id]);
+
+  // 後面那張換人時，把 backScale 平滑縮回去
+  const prevNextId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const nextId = queue[1]?.id;
+    if (!nextId || nextId === prevNextId.current) return;
+    prevNextId.current = nextId;
+    backScale.value = withTiming(0.95, { duration: 200 });
+    // 預先載入下下位的照片
+    const uri = toPhotoUri(queue[1]?.avatarUrl);
+    if (uri) Image.prefetch(uri).catch(() => {});
+  }, [queue[1]?.id]);
+
   function advance() {
     swiping.current = false;
+    tx.value = 0; ty.value = 0; rot.value = 0;
     setQueue((q) => q.slice(1));
-    tx.value = 0; ty.value = 0; rot.value = 0; cardOpacity.value = 1;
     if (queue.length < 4) fetchNextPage();
   }
 
@@ -182,6 +205,7 @@ export default function SwipeDeckScreen() {
     ty.value = withTiming(toY, { duration: 300 });
     rot.value = withTiming(toR, { duration: 300 });
     cardOpacity.value = withTiming(0, { duration: 300 }, () => runOnJS(cb)());
+    backScale.value = withTiming(1, { duration: 300 });
   }
 
   async function swipe(dir: 'left' | 'right' | 'up') {
@@ -223,6 +247,8 @@ export default function SwipeDeckScreen() {
       tx.value = e.translationX;
       ty.value = e.translationY * 0.25;
       rot.value = (e.translationX / SW) * 18;
+      const progress = Math.min(Math.abs(e.translationX) / SWIPE_THRESHOLD, 1);
+      backScale.value = 0.95 + 0.05 * progress;
     })
     .onEnd((e) => {
       const goRight = e.translationX > SWIPE_THRESHOLD;
@@ -235,6 +261,7 @@ export default function SwipeDeckScreen() {
         tx.value = withSpring(0, { damping: 20 });
         ty.value = withSpring(0, { damping: 20 });
         rot.value = withSpring(0, { damping: 20 });
+        backScale.value = withSpring(0.95, { damping: 20 });
       }
     });
 
@@ -243,6 +270,11 @@ export default function SwipeDeckScreen() {
     opacity: cardOpacity.value,
   }));
 
+  const backCardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: backScale.value }, { translateY: 10 }],
+  }));
+
+  // 卡片上的 LIKE / NOPE / SUPER 文字 stamp
   const likeStyle = useAnimatedStyle(() => ({
     opacity: interpolate(tx.value, [20, 100], [0, 1], Extrapolation.CLAMP),
   }));
@@ -253,169 +285,169 @@ export default function SwipeDeckScreen() {
     opacity: interpolate(ty.value, [-20, -80], [0, 1], Extrapolation.CLAMP),
   }));
 
+  // 底部固定 icon：只顯示當前滑動方向的 icon，其他隱藏
+  const passIconStyle = useAnimatedStyle(() => {
+    if (tx.value > 20 || ty.value < -20) return { opacity: 0, transform: [{ scale: 1 }] };
+    return {
+      transform: [{ scale: interpolate(tx.value, [0, -SWIPE_THRESHOLD], [1, 1.6], Extrapolation.CLAMP) }],
+      opacity: interpolate(tx.value, [0, -40, -SWIPE_THRESHOLD], [0.5, 0.85, 1], Extrapolation.CLAMP),
+    };
+  });
+  const likeIconStyle = useAnimatedStyle(() => {
+    if (tx.value < -20 || ty.value < -20) return { opacity: 0, transform: [{ scale: 1 }] };
+    return {
+      transform: [{ scale: interpolate(tx.value, [0, SWIPE_THRESHOLD], [1, 1.6], Extrapolation.CLAMP) }],
+      opacity: interpolate(tx.value, [0, 40, SWIPE_THRESHOLD], [0.5, 0.85, 1], Extrapolation.CLAMP),
+    };
+  });
+  const superIconStyle = useAnimatedStyle(() => {
+    if (Math.abs(tx.value) > 20) return { opacity: 0, transform: [{ scale: 1 }] };
+    return {
+      transform: [{ scale: interpolate(ty.value, [0, -SUPER_THRESHOLD], [1, 1.6], Extrapolation.CLAMP) }],
+      opacity: interpolate(ty.value, [0, -40, -SUPER_THRESHOLD], [0.5, 0.85, 1], Extrapolation.CLAMP),
+    };
+  });
+
   const top = queue[0];
   const next = queue[1];
   const topDist = top ? distanceMap.get(top.id) : undefined;
   const distLabel = topDist != null
     ? topDist < 1000 ? `${Math.round(topDist)} m` : `${(topDist / 1000).toFixed(1)} km`
     : '附近';
-  const photoUri = top?.avatarUrl ? `${API_URL}${top.avatarUrl}` : null;
-  const nextPhotoUri = next?.avatarUrl ? `${API_URL}${next.avatarUrl}` : null;
+  function toPhotoUri(url?: string | null) {
+    if (!url) return null;
+    return url.startsWith('http') ? url : `${API_URL}${url}`;
+  }
+  const photoUri = toPhotoUri(top?.avatarUrl);
+  const nextPhotoUri = toPhotoUri(next?.avatarUrl);
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 pt-2 pb-2">
-        <Pressable onPress={() => router.push('/(app)/profile/discover-settings')} className="rounded-full border border-zinc-800 p-2" style={{ borderWidth: 0.5 }}>
-          <Sliders size={14} color="#d4d4d8" />
-        </Pressable>
-        <Text className="text-[20px] font-bold text-white tracking-tight">
-          PawPals <Text className="italic font-light text-zinc-500">Go.</Text>
-        </Text>
-        <View className="rounded-full border border-zinc-800 px-3 py-1" style={{ borderWidth: 0.5 }}>
-          <Text className="font-mono text-[10px] tracking-widest uppercase text-zinc-300">
-            {role === 'OWNER' ? 'OWNER' : 'LOVER'}
-          </Text>
-        </View>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }} edges={['top', 'bottom']}>
+      {/* 外層卡片容器 — 圓角框包住照片區 + 按鈕區，底部留空給浮動 tab bar */}
+      <View style={{ flex: 1, marginHorizontal: 0, marginBottom: 90, borderRadius: 20, overflow: 'hidden', backgroundColor: '#1c1c1e', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)' }}>
 
-      {/* Card area */}
-      <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: 8 }}>
-        {/* Back card */}
-        {next && (
-          <View
-            className="absolute rounded-[24px] bg-zinc-900 overflow-hidden border border-zinc-800"
-            style={{ left: 16, right: 16, top: 0, height: CARD_H, transform: [{ scale: 0.95 }, { translateY: 10 }], opacity: 0.6, borderWidth: 0.5 }}
-          >
-            {nextPhotoUri
-              ? <Image source={{ uri: nextPhotoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-              : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#27272a' }}>
-                  <User size={48} color="#3f3f46" strokeWidth={1} />
-                </View>
-            }
-          </View>
-        )}
+        {/* 照片滑動區 */}
+        <View style={{ flex: 1 }} onLayout={(e) => setCardAreaH(e.nativeEvent.layout.height - 4)}>
 
-        {/* Top card */}
-        {top ? (
-          <GestureDetector gesture={pan}>
-            <Animated.View
-              style={[cardStyle, { height: CARD_H, borderRadius: 24, overflow: 'hidden', position: 'relative' }]}
-              className="border border-zinc-800 bg-zinc-900"
-            >
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
+          {/* 背景卡 */}
+          {next && (
+            <Animated.View style={[backCardStyle, { position: 'absolute', left: 0, right: 0, top: 0, height: cardAreaH, overflow: 'hidden', backgroundColor: '#2c2c2e' }]}>
+              {nextPhotoUri ? (
+                <Image source={{ uri: nextPhotoUri }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
               ) : (
-                <View style={{ position: 'absolute', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#27272a' }}>
+                <View style={{ position: 'absolute', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2c2c2e' }}>
                   <User size={80} color="#3f3f46" strokeWidth={1} />
                 </View>
               )}
-
-              <LinearGradient
-                colors={['rgba(0,0,0,0.5)', 'transparent']}
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 120 }}
-                pointerEvents="none"
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.95)']}
-                locations={[0, 0.5, 1]}
-                style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 300 }}
-                pointerEvents="none"
-              />
-
-              {/* Role badge top-left */}
-              <View className="absolute top-8 left-3 z-20 rounded-full bg-black/50 border border-white/20 px-2 py-1" style={{ borderWidth: 0.5 }}>
-                <Text className="font-mono text-[10px] tracking-widest text-white/80">{ROLE_LABEL[top.role] ?? top.role}</Text>
-              </View>
-
-              {/* LIKE overlay */}
-              <Animated.View style={[likeStyle, { position: 'absolute', top: 40, left: 20, zIndex: 30 }]}>
-                <View className="border-2 border-green-400 rounded-xl px-4 py-2" style={{ transform: [{ rotate: '-15deg' }] }}>
-                  <Text className="text-green-400 text-[28px] font-black tracking-widest">LIKE</Text>
+              <LinearGradient colors={['transparent', 'rgba(28,28,30,0.7)', 'rgba(28,28,30,0.97)']} locations={[0, 0.5, 1]} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 280 }} pointerEvents="none" />
+              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 148, paddingHorizontal: 16, paddingBottom: 14, justifyContent: 'flex-end' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <MapPin size={11} color="rgba(255,255,255,0.5)" />
+                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>{next.city ?? '附近'}</Text>
                 </View>
-              </Animated.View>
-
-              {/* NOPE overlay */}
-              <Animated.View style={[nopeStyle, { position: 'absolute', top: 40, right: 20, zIndex: 30 }]}>
-                <View className="border-2 border-red-500 rounded-xl px-4 py-2" style={{ transform: [{ rotate: '15deg' }] }}>
-                  <Text className="text-red-500 text-[28px] font-black tracking-widest">NOPE</Text>
-                </View>
-              </Animated.View>
-
-              {/* SUPER overlay */}
-              <Animated.View style={[superStyle, { position: 'absolute', top: '40%', left: 0, right: 0, alignItems: 'center', zIndex: 30 }]}>
-                <View className="border-2 border-blue-400 rounded-xl px-6 py-2">
-                  <Text className="text-blue-400 text-[28px] font-black tracking-widest">SUPER</Text>
-                </View>
-              </Animated.View>
-
-              {/* Info */}
-              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, zIndex: 20 }}>
-                <View className="flex-row items-end justify-between">
-                  <View className="flex-1">
-                    <Text className="text-[30px] font-bold text-white leading-none">
-                      {top.displayName ?? top.email.split('@')[0]}
-                    </Text>
-                    {top.bio ? (
-                      <Text className="mt-2 text-white/85 text-[13px] leading-relaxed" numberOfLines={2}>{top.bio}</Text>
-                    ) : null}
-                    {(top.interests ?? []).length > 0 && (
-                      <View className="mt-2 flex-row flex-wrap gap-1.5">
-                        {(top.interests ?? []).slice(0, 4).map((t) => <Badge key={t}>{t}</Badge>)}
-                      </View>
-                    )}
-                    <View className="mt-2 flex-row items-center gap-3">
-                      <View className="flex-row items-center gap-1.5">
-                        <MapPin size={12} color="rgba(255,255,255,0.5)" />
-                        <Text className="text-white/50 text-[12px]">{distLabel}</Text>
-                      </View>
-                      {top.city ? <Text className="text-white/40 text-[12px]">{top.city}</Text> : null}
-                    </View>
-                  </View>
-
-                  {/* Treat button */}
-                  <Pressable
-                    onPress={() => setIap(true)}
-                    className="ml-3 rounded-full bg-black/50 border border-white/30 p-3 items-center"
-                    style={{ borderWidth: 0.5 }}
-                  >
-                    <Beef size={20} color="#fff" />
-                  </Pressable>
-                </View>
+                <Text style={{ fontSize: 26, fontWeight: '700', color: '#fff', lineHeight: 30 }} numberOfLines={1}>
+                  {next.displayName ?? next.email.split('@')[0]}
+                </Text>
+                <Text style={{ marginTop: 3, color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 17, minHeight: 34 }} numberOfLines={2}>
+                  {next.bio ?? ''}
+                </Text>
               </View>
             </Animated.View>
-          </GestureDetector>
-        ) : (
-          <View style={{ height: CARD_H }} className="rounded-[24px] bg-zinc-900 items-center justify-center border border-zinc-800" style={{ borderWidth: 0.5 }}>
-            <Text className="text-zinc-500 text-[16px]">附近暫時沒有新朋友</Text>
-            <Text className="text-zinc-600 text-[13px] mt-2">試試調整探索距離或身分篩選</Text>
-          </View>
-        )}
-      </View>
+          )}
 
-      {/* Controls */}
-      <View className="flex-row items-center justify-center gap-5 pb-6 pt-2">
-        <Pressable
-          onPress={() => swipe('left')}
-          className="h-14 w-14 rounded-full border border-zinc-700 items-center justify-center bg-zinc-900"
-          style={{ borderWidth: 0.5 }}
-        >
-          <X size={24} color="#ef4444" strokeWidth={2.5} />
-        </Pressable>
-        <Pressable
-          onPress={() => swipe('up')}
-          className="h-12 w-12 rounded-full border border-blue-800/60 items-center justify-center bg-blue-950/50"
-          style={{ borderWidth: 0.5 }}
-        >
-          <Star size={18} color="#60a5fa" fill="#60a5fa" strokeWidth={1.5} />
-        </Pressable>
-        <Pressable
-          onPress={() => swipe('right')}
-          className="h-16 w-16 rounded-full bg-green-500 items-center justify-center"
-          style={{ shadowColor: '#22c55e', shadowOpacity: 0.4, shadowRadius: 20 }}
-        >
-          <Heart size={28} color="#fff" fill="#fff" strokeWidth={1.5} />
-        </Pressable>
+          {/* 頂部卡 */}
+          {top ? (
+            <GestureDetector gesture={pan}>
+              <Animated.View key={top.id} style={[cardStyle, { height: cardAreaH, overflow: 'hidden', backgroundColor: '#2c2c2e' }]}>
+                {photoUri ? (
+                  <Image source={{ uri: photoUri }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
+                ) : (
+                  <View style={{ position: 'absolute', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2c2c2e' }}>
+                    <User size={80} color="#3f3f46" strokeWidth={1} />
+                  </View>
+                )}
+                <LinearGradient colors={['rgba(28,28,30,0.25)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 80 }} pointerEvents="none" />
+                <LinearGradient colors={['transparent', 'rgba(28,28,30,0.6)', 'rgba(28,28,30,0.96)']} locations={[0, 0.45, 1]} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 360 }} pointerEvents="none" />
+
+                {/* 身分角標 */}
+                <View style={{ position: 'absolute', top: 12, left: 12, borderRadius: 999, backgroundColor: 'rgba(28,28,30,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)' }}>
+                  <Text style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(255,255,255,0.85)' }}>{ROLE_LABEL[top.role] ?? top.role}</Text>
+                </View>
+
+                {/* LIKE / NOPE / SUPER stamps */}
+                <Animated.View style={[likeStyle, { position: 'absolute', top: 44, left: 20, zIndex: 30 }]}>
+                  <View style={{ borderWidth: 2, borderColor: '#4ade80', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6, transform: [{ rotate: '-15deg' }] }}>
+                    <Text style={{ color: '#4ade80', fontSize: 26, fontWeight: '900', letterSpacing: 2 }}>LIKE</Text>
+                  </View>
+                </Animated.View>
+                <Animated.View style={[nopeStyle, { position: 'absolute', top: 44, right: 20, zIndex: 30 }]}>
+                  <View style={{ borderWidth: 2, borderColor: '#ef4444', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6, transform: [{ rotate: '15deg' }] }}>
+                    <Text style={{ color: '#ef4444', fontSize: 26, fontWeight: '900', letterSpacing: 2 }}>NOPE</Text>
+                  </View>
+                </Animated.View>
+                <Animated.View style={[superStyle, { position: 'absolute', top: '40%', left: 0, right: 0, alignItems: 'center', zIndex: 30 }]}>
+                  <View style={{ borderWidth: 2, borderColor: '#60a5fa', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 6 }}>
+                    <Text style={{ color: '#60a5fa', fontSize: 26, fontWeight: '900', letterSpacing: 2 }}>SUPER</Text>
+                  </View>
+                </Animated.View>
+
+                {/* 固定高度 info */}
+                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 148, paddingHorizontal: 16, paddingBottom: 14, justifyContent: 'flex-end', zIndex: 20 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                        <MapPin size={11} color="rgba(255,255,255,0.5)" />
+                        <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>{distLabel}</Text>
+                        {top.city ? <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginLeft: 2 }}>{top.city}</Text> : null}
+                      </View>
+                      <Text style={{ fontSize: 26, fontWeight: '700', color: '#fff', lineHeight: 30 }} numberOfLines={1}>
+                        {top.displayName ?? top.email.split('@')[0]}
+                      </Text>
+                      <Text style={{ marginTop: 3, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 17, minHeight: 34 }} numberOfLines={2}>
+                        {top.bio ?? ''}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => setIap(true)} style={{ marginLeft: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(28,28,30,0.6)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Beef size={16} color="#fff" />
+                    </Pressable>
+                  </View>
+                </View>
+              </Animated.View>
+            </GestureDetector>
+          ) : (
+            <View style={{ height: cardAreaH, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#71717a', fontSize: 16 }}>附近暫時沒有新朋友</Text>
+              <Text style={{ color: '#52525b', fontSize: 13, marginTop: 6 }}>試試調整探索距離或身分篩選</Text>
+            </View>
+          )}
+
+          {/* 篩選 icon — 疊在照片左上角 */}
+          <Pressable
+            onPress={() => router.push('/(app)/profile/discover-settings')}
+            style={{ position: 'absolute', top: 12, left: 12, zIndex: 100, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(28,28,30,0.55)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Sliders size={15} color="#fff" />
+          </Pressable>
+        </View>
+
+        {/* 按鈕列 — 在卡片圓角框內，固定不動（不在 GestureDetector 裡） */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 52, paddingVertical: 14, backgroundColor: '#1c1c1e' }}>
+          <Animated.View style={passIconStyle}>
+            <Pressable onPress={() => swipe('left')} hitSlop={20}>
+              <X size={34} color="#ef4444" strokeWidth={2.5} />
+            </Pressable>
+          </Animated.View>
+          <Animated.View style={superIconStyle}>
+            <Pressable onPress={() => swipe('up')} hitSlop={20}>
+              <Star size={28} color="#60a5fa" fill="#60a5fa" strokeWidth={1.5} />
+            </Pressable>
+          </Animated.View>
+          <Animated.View style={likeIconStyle}>
+            <Pressable onPress={() => swipe('right')} hitSlop={20}>
+              <Heart size={38} color="#22c55e" fill="#22c55e" strokeWidth={1.5} />
+            </Pressable>
+          </Animated.View>
+        </View>
       </View>
 
       <TreatModal open={iap} user={top ?? null} onClose={() => setIap(false)} onBuy={sendTreat} />

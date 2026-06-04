@@ -417,6 +417,14 @@ export default function ChatScreen() {
   const isLastRead = partnerReadAt && myMessages.length > 0 &&
     partnerReadAt >= myMessages[myMessages.length - 1].createdAt;
 
+  function formatTime(iso: string) {
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const hhmm = d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return sameDay ? hhmm : `${d.getMonth() + 1}/${d.getDate()} ${hhmm}`;
+  }
+
   function renderItem({ item }: { item: ExtMessage }) {
     const isSys = item.from === 'sys' || item.senderId === 'sys';
     const isMe = item.senderId === userId;
@@ -441,8 +449,11 @@ export default function ChatScreen() {
             {item.text}
           </Text>
         </View>
+        <Text className={`text-[10px] text-zinc-500 mt-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
+          {formatTime(item.createdAt)}
+        </Text>
         {isLastMine && isLastRead && (
-          <View className="flex-row items-center gap-1 mt-1 mr-1">
+          <View className="flex-row items-center gap-1 mr-1">
             <CheckCheck size={12} color="#71717a" />
             <Text className="text-[10px] text-zinc-500">已讀</Text>
           </View>

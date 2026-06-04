@@ -1,4 +1,4 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const USER_CARD_SELECT = {
@@ -38,7 +38,7 @@ export class DiscoverService {
     const userRows = await this.prisma.$queryRaw<{ hasLocation: boolean }[]>`
       SELECT (location IS NOT NULL) as "hasLocation" FROM "User" WHERE id = ${userId}
     `;
-    if (!userRows[0]?.hasLocation) throw new UnprocessableEntityException('LOCATION_NOT_SET');
+    if (!userRows[0]?.hasLocation) return [];
 
     const rows = await this.prisma.$queryRaw<{ id: string; distanceM: number }[]>`
       SELECT u.id, ST_Distance(u.location, me.location) as "distanceM"
