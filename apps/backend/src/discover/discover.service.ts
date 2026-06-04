@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const USER_CARD_SELECT = {
@@ -8,16 +9,25 @@ const USER_CARD_SELECT = {
   height: true, avatarUrl: true,
 };
 
+function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 @Injectable()
 export class DiscoverService {
   constructor(private prisma: PrismaService) {}
 
   async updateLocation(userId: string, lat: number, lng: number) {
-    await this.prisma.$executeRaw`
-      UPDATE "User"
-      SET location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
-      WHERE id = ${userId}
-    `;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { latitude: lat, longitude: lng },
+    });
     return { ok: true };
   }
 
@@ -29,51 +39,55 @@ export class DiscoverService {
     genderFilter: string[] = [],
     roleFilter: string | null = null,
   ) {
-    const offset = (page - 1) * limit;
-    const radiusM = radius * 1000;
-    const filterByGender = genderFilter.length > 0 && genderFilter.length < 3;
-    const filterByRole = roleFilter !== null;
-    const safeRole = roleFilter ?? 'OWNER';
+    const me = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { latitude: true, longitude: true },
+    });
+    if (!me?.latitude || !me?.longitude) return [];
 
-    const userRows = await this.prisma.$queryRaw<{ hasLocation: boolean }[]>`
-      SELECT (location IS NOT NULL) as "hasLocation" FROM "User" WHERE id = ${userId}
-    `;
-    if (!userRows[0]?.hasLocation) return [];
+    const passExpiryMinutes = parseInt(process.env.PASS_EXPIRY_MINUTES ?? '1');
+    const passExpiryDate = new Date(Date.now() - passExpiryMinutes * 60 * 1000);
 
-    const rows = await this.prisma.$queryRaw<{ id: string; distanceM: number }[]>`
-      SELECT u.id, ST_Distance(u.location, me.location) as "distanceM"
-      FROM "User" u
-      JOIN "User" me ON me.id = ${userId}
-      WHERE u.id != ${userId}
-        AND me.location IS NOT NULL
-        AND u.location IS NOT NULL
-        AND ST_DWithin(u.location, me.location, ${radiusM})
-        AND u.id NOT IN (
-          SELECT "targetId" FROM "Swipe"
-          WHERE "swiperId" = ${userId}
-            AND (
-              direction != 'PASS'
-              OR "createdAt" > NOW() - (${parseInt(process.env.PASS_EXPIRY_MINUTES ?? '1')} || ' minutes')::interval
-            )
-        )
-        AND (
-          ${!filterByGender} OR u.gender::text = ANY(${genderFilter})
-        )
-        AND (
-          ${!filterByRole} OR u.role::text = ${safeRole}
-        )
-      ORDER BY "distanceM" ASC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
+    const swipes = await this.prisma.swipe.findMany({
+      where: {
+        swiperId: userId,
+        OR: [
+          { direction: { not: 'PASS' as any } },
+          { direction: 'PASS' as any, createdAt: { gt: passExpiryDate } },
+        ],
+      },
+      select: { targetId: true },
+    });
+    const swipedIds = swipes.map((s) => s.targetId);
 
-    const distanceMap = new Map(rows.map((r) => [r.id, Number(r.distanceM)]));
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: rows.map((r) => r.id) } },
-      select: USER_CARD_SELECT,
+    const where: Prisma.UserWhereInput = {
+      id: { not: userId, notIn: swipedIds },
+      latitude: { not: null },
+      longitude: { not: null },
+      ...(genderFilter.length > 0 && genderFilter.length < 3
+        ? { gender: { in: genderFilter as any } }
+        : {}),
+      ...(roleFilter !== null ? { role: roleFilter as any } : {}),
+    };
+
+    const candidates = await this.prisma.user.findMany({
+      where,
+      select: { ...USER_CARD_SELECT, latitude: true, longitude: true },
     });
 
-    return users
-      .sort((a, b) => (distanceMap.get(a.id) ?? 0) - (distanceMap.get(b.id) ?? 0))
-      .map((u) => ({ user: u, distanceM: distanceMap.get(u.id) ?? 0 }));
+    const radiusM = radius * 1000;
+    const withDistance = candidates
+      .map((u) => ({
+        user: u,
+        distanceM: haversineM(me.latitude!, me.longitude!, u.latitude!, u.longitude!),
+      }))
+      .filter((u) => u.distanceM <= radiusM)
+      .sort((a, b) => a.distanceM - b.distanceM);
+
+    const offset = (page - 1) * limit;
+    return withDistance.slice(offset, offset + limit).map(({ user, distanceM }) => {
+      const { latitude, longitude, ...rest } = user;
+      return { user: rest, distanceM };
+    });
   }
 }

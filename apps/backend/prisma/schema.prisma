@@ -63,7 +63,8 @@ model User {
   city         String?
   height       Int?
   avatarUrl    String?
-  location     Unsupported("geography(Point, 4326)")?
+  latitude     Float?
+  longitude    Float?
   createdAt    DateTime @default(now())
 
   pets               Pet[]
