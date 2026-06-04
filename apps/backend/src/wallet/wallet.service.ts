@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WALLET_PACKAGES } from '@pawpals/shared';
 
@@ -16,7 +17,7 @@ export class WalletService {
     const pkg = WALLET_PACKAGES.find((p) => p.id === packageId);
     if (!pkg) throw new UnprocessableEntityException('INVALID_PACKAGE');
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const wallet = await tx.wallet.update({
         where: { userId },
         data: { balance: { increment: pkg.jerky } },
@@ -29,7 +30,7 @@ export class WalletService {
   }
 
   async debitEscrow(userId: string, amount: number, meetingId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const wallet = await tx.wallet.findUnique({ where: { userId } });
       if (!wallet || wallet.balance < amount) throw new UnprocessableEntityException('INSUFFICIENT_BALANCE');
       await tx.wallet.update({ where: { userId }, data: { balance: { decrement: amount } } });
@@ -40,7 +41,7 @@ export class WalletService {
   }
 
   async releaseEscrow(meetingId: string, recipientId: string, amount: number) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.wallet.update({ where: { userId: recipientId }, data: { balance: { increment: amount } } });
       await tx.walletTransaction.create({
         data: { userId: recipientId, type: 'ESCROW_RELEASE', amount, relatedEntityId: meetingId },
@@ -49,7 +50,7 @@ export class WalletService {
   }
 
   async refundEscrow(meetingId: string, userId: string, amount: number) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.wallet.update({ where: { userId }, data: { balance: { increment: amount } } });
       await tx.walletTransaction.create({
         data: { userId, type: 'CREDIT', amount, relatedEntityId: meetingId },

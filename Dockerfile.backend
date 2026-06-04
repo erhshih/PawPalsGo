@@ -15,6 +15,9 @@ RUN pnpm install --frozen-lockfile
 # 先 build shared 套件
 RUN pnpm --filter @pawpals/shared build
 
+# 產生 Prisma client（型別需要在 build 前存在）
+RUN pnpm --filter backend exec prisma generate
+
 # 再 build backend
 RUN pnpm --filter backend build
 

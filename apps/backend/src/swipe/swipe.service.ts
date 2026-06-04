@@ -1,4 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
@@ -46,7 +47,7 @@ export class SwipeService {
   }
 
   async sendTreat(senderId: string, targetUserId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const senderWallet = await tx.wallet.findUnique({ where: { userId: senderId } });
       if (!senderWallet || senderWallet.balance < 1) throw new Error('INSUFFICIENT_BALANCE');
 
