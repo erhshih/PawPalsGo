@@ -37,6 +37,9 @@ COPY apps/backend/ ./apps/backend/
 # 只安裝 production 依賴
 RUN pnpm install --frozen-lockfile --prod
 
+# 產生 Prisma client（runtime 需要）
+RUN pnpm --filter backend exec prisma generate
+
 # 複製 build 產出
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
