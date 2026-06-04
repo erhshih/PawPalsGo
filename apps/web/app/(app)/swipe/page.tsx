@@ -38,27 +38,31 @@ export default function SwipePage() {
   useEffect(() => {
     async function init() {
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        let permissionGranted = false;
+        let permState = 'prompt';
         try {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
-          permissionGranted = perm.state === 'granted';
+          permState = perm.state;
         } catch {
-          // permissions API 不支援時（舊瀏覽器）跳過
+          // permissions API 不支援時（舊瀏覽器）視為 prompt
         }
 
-        if (permissionGranted) {
+        if (permState === 'denied') {
+          setLocationDenied(true);
+        } else {
+          // 'granted' 或 'prompt' 都呼叫，prompt 會跳出授權視窗
           await new Promise<void>((resolve) => {
             navigator.geolocation.getCurrentPosition(
               async (pos) => {
                 await api.patch('/users/me/location', { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(() => {});
                 resolve();
               },
-              () => resolve(),
-              { timeout: 5000 },
+              () => {
+                setLocationDenied(true);
+                resolve();
+              },
+              { timeout: 10000 },
             );
           });
-        } else {
-          setLocationDenied(true);
         }
       }
       fetchNextPage(1);
