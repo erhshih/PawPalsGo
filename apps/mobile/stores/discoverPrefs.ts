@@ -21,7 +21,7 @@ interface DiscoverPrefsState {
 }
 
 export const useDiscoverPrefs = create<DiscoverPrefsState>((set, get) => ({
-  radius: 5,
+  radius: 50,
   showMore: true,
   genderFilter: ['男性', '女性', '多元性別'],
   roleFilter: null,
