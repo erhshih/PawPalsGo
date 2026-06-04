@@ -38,6 +38,7 @@ COPY apps/backend/ ./apps/backend/
 RUN pnpm install --frozen-lockfile --prod
 
 # 複製 build 產出
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 
 WORKDIR /app/apps/backend
