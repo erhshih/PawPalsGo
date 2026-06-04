@@ -20,6 +20,9 @@ async function bootstrap() {
   mkdirSync(join(process.cwd(), 'uploads', 'avatars'), { recursive: true });
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
+  // Railway health check
+  app.getHttpAdapter().get('/health', (_req: unknown, res: { send: (s: string) => void }) => res.send('ok'));
+
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
   console.log(`Backend running on http://localhost:${port}`);

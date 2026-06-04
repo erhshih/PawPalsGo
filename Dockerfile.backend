@@ -1,0 +1,46 @@
+FROM node:20-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# 複製 workspace 設定
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/ ./packages/
+COPY apps/backend/ ./apps/backend/
+
+# 安裝所有依賴（含 workspace 套件）
+RUN pnpm install --frozen-lockfile
+
+# 先 build shared 套件
+RUN pnpm --filter @pawpals/shared build
+
+# 再 build backend
+RUN pnpm --filter backend build
+
+# ── Production image ──────────────────────────────
+FROM node:20-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/ ./packages/
+COPY apps/backend/ ./apps/backend/
+
+# 只安裝 production 依賴
+RUN pnpm install --frozen-lockfile --prod
+
+# 複製 build 產出
+COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
+
+WORKDIR /app/apps/backend
+
+# 啟動腳本：跑 migration → 啟動 server
+COPY apps/backend/start.sh ./start.sh
+RUN chmod +x ./start.sh
+
+EXPOSE 3001
+
+CMD ["./start.sh"]
