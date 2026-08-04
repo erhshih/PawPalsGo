@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: backend
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5434/pawpals}
+    username: ${DATABASE_USER:pawpals}
+    password: ${DATABASE_PASSWORD:pawpals}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Independent schema from the Node/Prisma backend (own snake_case tables) — see README.
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: ${PORT:3003}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-access-secret-change-me-please-32chars}
+    refresh-secret: ${JWT_REFRESH_SECRET:dev-only-refresh-secret-change-me-please-32c}
+    access-ttl-seconds: ${JWT_ACCESS_TTL:900}
+    refresh-ttl-seconds: ${JWT_REFRESH_TTL:604800}
+  cors:
+    origins: ${CORS_ORIGIN:http://localhost:3000,http://localhost:3002}
+  uploads:
+    dir: ${UPLOADS_DIR:uploads}
+  pass-expiry-minutes: ${PASS_EXPIRY_MINUTES:1}

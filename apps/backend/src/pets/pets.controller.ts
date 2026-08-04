@@ -13,9 +13,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import * as path from 'path';
-import * as fs from 'fs';
 import { PetsService } from './pets.service';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -48,18 +45,6 @@ export class PetsController {
   @Post(':petId/photos')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const petId = Array.isArray(req.params.petId) ? req.params.petId[0] : req.params.petId;
-          const dir = path.join(process.cwd(), 'uploads', 'pets', petId);
-          fs.mkdirSync(dir, { recursive: true });
-          cb(null, dir);
-        },
-        filename: (req, file, cb) => {
-          const ext = path.extname(file.originalname);
-          cb(null, `${Date.now()}${ext}`);
-        },
-      }),
       fileFilter: (req, file, cb) => {
         if (!['image/jpeg', 'image/png'].includes(file.mimetype)) return cb(new Error('INVALID_FILE_TYPE'), false);
         cb(null, true);

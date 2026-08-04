@@ -7,8 +7,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
-import { join } from 'path';
-import { mkdirSync } from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -16,9 +14,6 @@ async function bootstrap() {
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
   app.enableCors({ origin: true, credentials: true });
-
-  mkdirSync(join(process.cwd(), 'uploads', 'avatars'), { recursive: true });
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
   // Railway health check
   app.getHttpAdapter().get('/health', (_req: unknown, res: { send: (s: string) => void }) => res.send('ok'));

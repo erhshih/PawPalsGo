@@ -311,7 +311,7 @@ export default function EditProfileScreen() {
     );
   }
 
-  const photoUri = avatarUrl ? `${API_URL}${avatarUrl}` : null;
+  const photoUri = avatarUrl ? (avatarUrl.startsWith('http') ? avatarUrl : `${API_URL}${avatarUrl}`) : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

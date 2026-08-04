@@ -98,7 +98,7 @@ export default function WebSettingsPage() {
       <SectionHeader title="隱私" />
       <Card>
         <SettingRow label="隱私偏好設定" onClick={() => toast.info('功能即將推出')} />
-        <SettingRow label="封鎖名單" onClick={() => toast.info('功能即將推出')} last />
+        <SettingRow label="封鎖名單" onClick={() => router.push('/profile/blocked')} last />
       </Card>
 
       {/* 法務 */}

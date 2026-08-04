@@ -16,7 +16,10 @@ export type WalletTransactionType =
   | 'DEBIT'
   | 'CREDIT'
   | 'ESCROW'
-  | 'ESCROW_RELEASE';
+  | 'ESCROW_RELEASE'
+  | 'TIP_SENT'
+  | 'TIP_RECEIVED'
+  | 'REDEMPTION';
 
 export type PhotoKind = 'closeup' | 'owner' | 'bw';
 
@@ -99,6 +102,137 @@ export interface DiscoverResultDto {
 
 export interface AuthTokens {
   accessToken: string;
+}
+
+// ── 貼文牆 + 抖內 ──
+export interface PostAuthorDto {
+  id: string;
+  displayName?: string;
+  avatarUrl?: string;
+  city?: string;
+}
+
+export interface PostPhotoDto {
+  id: string;
+  postId: string;
+  url: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface PostDto {
+  id: string;
+  authorId: string;
+  petId?: string;
+  caption?: string;
+  createdAt: string;
+  photos: PostPhotoDto[];
+  likeCount: number;
+  commentCount: number;
+  tipCount: number;
+  author?: PostAuthorDto;
+  distanceM?: number;
+}
+
+export interface PostCommentDto {
+  id: string;
+  postId: string;
+  authorId: string;
+  text: string;
+  createdAt: string;
+}
+
+export const TIP_AMOUNTS = [1, 5, 10, 50] as const;
+export type TipAmount = typeof TIP_AMOUNTS[number];
+
+export interface TipperDto {
+  amount: number;
+  tippedAt: string;
+  sender: UserDto;
+}
+
+// ── 狗聚 ──
+export interface DogMeetupAttendeeDto {
+  id: string;
+  meetupId: string;
+  userId: string;
+  petId?: string;
+  joinedAt: string;
+  user?: PostAuthorDto;
+  pet?: { id: string; name: string; breed: string };
+}
+
+export interface DogMeetupDto {
+  id: string;
+  organizerId: string;
+  title: string;
+  description?: string;
+  location: string;
+  latitude?: number;
+  longitude?: number;
+  scheduledAt: string;
+  maxAttendees?: number;
+  cancelledAt?: string;
+  createdAt: string;
+  organizer?: PostAuthorDto;
+  attendeeCount: number;
+  attendees?: DogMeetupAttendeeDto[];
+  distanceM?: number;
+}
+
+// ── 肉乾兌換 ──
+export interface RedemptionRewardDto {
+  id: string;
+  partnerName: string;
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  costJerky: number;
+  stock?: number;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface RedemptionDto {
+  id: string;
+  rewardId: string;
+  userId: string;
+  code: string;
+  redeemedAt: string;
+  reward?: RedemptionRewardDto;
+}
+
+// ── 檢舉 / 封鎖 ──
+export type ReportReason =
+  | 'HARASSMENT'
+  | 'FAKE_PROFILE'
+  | 'INAPPROPRIATE_CONTENT'
+  | 'SCAM'
+  | 'SPAM'
+  | 'OTHER';
+
+export type ReportStatus = 'OPEN' | 'REVIEWED' | 'DISMISSED';
+
+export interface ReportDto {
+  id: string;
+  reporterId: string;
+  targetId: string;
+  reason: ReportReason;
+  detail?: string;
+  postId?: string;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+export interface BlockedUserDto {
+  id: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
+export interface BlockedEntryDto {
+  blockedAt: string;
+  user: BlockedUserDto;
 }
 
 export const WALLET_PACKAGES = [

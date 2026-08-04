@@ -6,10 +6,10 @@ import { connectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/stores/auth';
 import { useUnreadStore } from '@/stores/unread';
 import { useWalletStore } from '@/stores/wallet';
-import { MessageDto, MeetingDto } from '@pawpals/shared';
+import { MessageDto, MeetingDto, MatchDto } from '@pawpals/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronLeft, Send, CheckCheck, Calendar, QrCode } from 'lucide-react';
+import { ChevronLeft, Send, CheckCheck, Calendar, QrCode, EllipsisVertical, Flag, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 
 const HOURS = [10, 12, 14, 16, 18, 20];
@@ -31,6 +31,8 @@ export default function ChatDetailPage() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [match, setMatch] = useState<MatchDto | null>(null);
+  const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -42,6 +44,8 @@ export default function ChatDetailPage() {
 
   useEffect(() => {
     if (!matchId) return;
+
+    api.get<MatchDto>(`/matches/${matchId}`).then(({ data }) => setMatch(data)).catch(() => {});
 
     api.get<MessageDto[]>(`/matches/${matchId}/messages`)
       .then(({ data }) => {
@@ -127,6 +131,17 @@ export default function ChatDetailPage() {
     }
   }
 
+  async function blockPartner() {
+    const partner = match?.partner;
+    if (!partner) return;
+    if (!confirm('封鎖後你們將不會再看到彼此，也無法互傳訊息。確定要封鎖嗎？')) return;
+    try {
+      await api.post(`/blocks/${partner.id}`);
+      toast.success('已封鎖');
+      router.back();
+    } catch { toast.error('操作失敗，請稍後再試'); }
+  }
+
   async function cancelMeeting() {
     if (!meeting) return;
     try {
@@ -188,7 +203,43 @@ export default function ChatDetailPage() {
         >
           <Calendar size={16} />
         </button>
+        <button
+          onClick={() => setShowSafetyMenu(true)}
+          className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+        >
+          <EllipsisVertical size={16} />
+        </button>
       </div>
+
+      {/* Safety menu */}
+      {showSafetyMenu && (
+        <div className="absolute inset-0 bg-black/70 flex items-end z-50" onClick={() => setShowSafetyMenu(false)}>
+          <div className="w-full max-w-lg mx-auto bg-zinc-900 rounded-t-3xl p-5 pb-8 border-t border-zinc-800" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-zinc-700" />
+            <p className="text-center text-sm text-zinc-400 mb-4">
+              {match?.partner?.displayName ?? match?.partner?.email ?? '對方'}
+            </p>
+            <button
+              onClick={() => { setShowSafetyMenu(false); if (match?.partner) router.push(`/report?targetId=${match.partner.id}`); }}
+              className="w-full flex items-center gap-3 rounded-xl px-4 py-3.5 text-zinc-200 hover:bg-zinc-800 transition-colors"
+            >
+              <Flag size={16} /> 檢舉
+            </button>
+            <button
+              onClick={blockPartner}
+              className="w-full flex items-center gap-3 rounded-xl px-4 py-3.5 text-red-500 hover:bg-zinc-800 transition-colors"
+            >
+              <Ban size={16} /> 封鎖
+            </button>
+            <button
+              onClick={() => setShowSafetyMenu(false)}
+              className="w-full mt-2 rounded-xl px-4 py-3.5 text-zinc-500 text-center hover:bg-zinc-800 transition-colors"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Meeting card */}
       {meeting && (

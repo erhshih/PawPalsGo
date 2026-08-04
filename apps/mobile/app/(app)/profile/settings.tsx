@@ -126,7 +126,7 @@ export default function SettingsScreen() {
         <SectionHeader title="隱私" />
         <Card>
           <SettingRow label="隱私偏好設定" onPress={() => show('功能即將推出')} />
-          <SettingRow label="封鎖名單" onPress={() => show('功能即將推出')} last />
+          <SettingRow label="封鎖名單" onPress={() => router.push('/(app)/profile/blocked')} last />
         </Card>
 
         {/* ── 法務 ── */}

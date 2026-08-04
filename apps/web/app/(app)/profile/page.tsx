@@ -8,7 +8,7 @@ import { WalletDto, Gender, UserDto, WALLET_PACKAGES } from '@pawpals/shared';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { LogOut, Beef, ChevronRight, X, Check, Camera, Settings, PenLine, User } from 'lucide-react';
+import { LogOut, Beef, ChevronRight, X, Check, Camera, Settings, PenLine, User, Gift } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -549,6 +549,16 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
+
+      {/* ── Redemptions entry ── */}
+      <Button
+        variant="outline"
+        className="w-full border-zinc-800 bg-zinc-900 text-white hover:bg-zinc-800 rounded-2xl mb-4"
+        onClick={() => router.push('/redemptions')}
+      >
+        <Gift size={14} className="mr-2" />
+        肉乾兌換好禮
+      </Button>
 
       {/* ── Logout ── */}
       <Button variant="outline" className="w-full border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-2xl" onClick={logout}>

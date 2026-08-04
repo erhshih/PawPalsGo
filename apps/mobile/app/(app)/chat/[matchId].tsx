@@ -5,9 +5,9 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, Beef, Calendar, QrCode, Camera, RotateCcw, AlertTriangle, CheckCheck } from 'lucide-react-native';
+import { ChevronLeft, Send, Beef, Calendar, QrCode, Camera, RotateCcw, AlertTriangle, CheckCheck, EllipsisVertical } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { MessageDto, MeetingDto, MeetingStatus } from '@pawpals/shared';
+import { MessageDto, MeetingDto, MeetingStatus, MatchDto } from '@pawpals/shared';
 import { api } from '../../../lib/api';
 import { connectSocket, getSocket } from '../../../lib/socket';
 import { useAuthStore } from '../../../stores/auth';
@@ -315,9 +315,11 @@ export default function ChatScreen() {
   const [partnerReadAt, setPartnerReadAt] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [match, setMatch] = useState<MatchDto | null>(null);
   const flatRef = useRef<FlatList>(null);
 
   useEffect(() => {
+    api.get<MatchDto>(`/matches/${matchId}`).then(({ data }) => setMatch(data)).catch(() => {});
     api.get<ExtMessage[]>(`/matches/${matchId}/messages`).then(({ data }) => {
       setMessages(data.reverse());
       setHasMore(data.length >= 20);
@@ -417,6 +419,33 @@ export default function ChatScreen() {
   const isLastRead = partnerReadAt && myMessages.length > 0 &&
     partnerReadAt >= myMessages[myMessages.length - 1].createdAt;
 
+  function openSafetyMenu() {
+    const partner = match?.partner;
+    if (!partner) return;
+    Alert.alert(partner.displayName ?? partner.email, undefined, [
+      { text: '檢舉', onPress: () => router.push({ pathname: '/(app)/report/create', params: { targetId: partner.id } }) },
+      {
+        text: '封鎖', style: 'destructive',
+        onPress: () => {
+          Alert.alert('封鎖此使用者', '封鎖後你們將不會再看到彼此，也無法互傳訊息。確定要封鎖嗎？', [
+            { text: '取消', style: 'cancel' },
+            {
+              text: '封鎖', style: 'destructive',
+              onPress: async () => {
+                try {
+                  await api.post(`/blocks/${partner.id}`);
+                  show('已封鎖', 'success');
+                  router.back();
+                } catch { show('操作失敗，請稍後再試'); }
+              },
+            },
+          ]);
+        },
+      },
+      { text: '取消', style: 'cancel' },
+    ]);
+  }
+
   function formatTime(iso: string) {
     const d = new Date(iso);
     const now = new Date();
@@ -472,6 +501,9 @@ export default function ChatScreen() {
         <View className="flex-1">
           <Text className="text-white text-[15px] font-semibold">配對對話</Text>
         </View>
+        <Pressable onPress={openSafetyMenu} className="p-1.5 -mr-1">
+          <EllipsisVertical size={18} color="#d4d4d8" />
+        </Pressable>
       </View>
 
       {/* Meeting card */}

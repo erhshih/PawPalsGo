@@ -1,6 +1,0 @@
-@PawPals.Api_HostAddress = http://localhost:5186
-
-GET {{PawPals.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

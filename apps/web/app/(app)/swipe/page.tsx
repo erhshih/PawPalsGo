@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useDiscoverPrefs } from '@/stores/discoverPrefs';
 import { connectSocket } from '@/lib/socket';
 import { DiscoverResultDto, MatchDto, UserDto } from '@pawpals/shared';
-import { X, Heart, Star, MapPin, Beef, MessageCircle, Sliders, User } from 'lucide-react';
+import { X, Heart, Star, MapPin, Beef, MessageCircle, Sliders, User, EllipsisVertical, Flag, Ban } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ export default function SwipePage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showTreat, setShowTreat] = useState(false);
+  const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const [matchedName, setMatchedName] = useState<string | null>(null);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
   const [locationDenied, setLocationDenied] = useState(false);
@@ -156,6 +157,19 @@ export default function SwipePage() {
     else { setDrag({ x: 0, y: 0, dragging: false }); }
   }
 
+  async function blockTop() {
+    const target = queue[0];
+    if (!target) return;
+    if (!confirm('封鎖後你們將不會再看到彼此，也無法互傳訊息。確定要封鎖嗎？')) return;
+    try {
+      await api.post(`/blocks/${target.id}`);
+      toast.success('已封鎖');
+      setShowSafetyMenu(false);
+      setQueue((q) => q.slice(1));
+      if (queue.length < 3) fetchNextPage();
+    } catch { toast.error('操作失敗，請稍後再試'); }
+  }
+
   async function sendTreat() {
     const top = queue[0];
     if (!top) return;
@@ -200,7 +214,13 @@ export default function SwipePage() {
           <h1 className="text-lg font-semibold">
             PawPals <span className="italic font-light text-zinc-500">Go.</span>
           </h1>
-          <div className="w-8" />
+          <button
+            onClick={() => setShowSafetyMenu(true)}
+            disabled={!top}
+            className="rounded-full border border-zinc-700 p-2 hover:bg-zinc-800 transition-colors disabled:opacity-0"
+          >
+            <EllipsisVertical size={14} className="text-zinc-300" />
+          </button>
         </div>
 
         {/* Card */}
@@ -333,6 +353,34 @@ export default function SwipePage() {
               開始聊天
             </Button>
             <button className="mt-3 text-zinc-600 text-sm" onClick={() => setMatchedName(null)}>繼續探索</button>
+          </div>
+        </div>
+      )}
+
+      {/* Safety menu */}
+      {showSafetyMenu && top && (
+        <div className="absolute inset-0 bg-black/70 flex items-end z-50" onClick={() => setShowSafetyMenu(false)}>
+          <div className="w-full bg-zinc-900 rounded-t-3xl p-5 pb-8 border-t border-zinc-800" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-zinc-700" />
+            <p className="text-center text-sm text-zinc-400 mb-4">{top.displayName ?? top.email}</p>
+            <button
+              onClick={() => { setShowSafetyMenu(false); router.push(`/report?targetId=${top.id}`); }}
+              className="w-full flex items-center gap-3 rounded-xl px-4 py-3.5 text-zinc-200 hover:bg-zinc-800 transition-colors"
+            >
+              <Flag size={16} /> 檢舉
+            </button>
+            <button
+              onClick={blockTop}
+              className="w-full flex items-center gap-3 rounded-xl px-4 py-3.5 text-red-500 hover:bg-zinc-800 transition-colors"
+            >
+              <Ban size={16} /> 封鎖
+            </button>
+            <button
+              onClick={() => setShowSafetyMenu(false)}
+              className="w-full mt-2 rounded-xl px-4 py-3.5 text-zinc-500 text-center hover:bg-zinc-800 transition-colors"
+            >
+              取消
+            </button>
           </div>
         </div>
       )}

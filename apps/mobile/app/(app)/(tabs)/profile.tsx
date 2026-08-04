@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, Image, Modal } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings, User, Beef, Plus, ChevronRight, Check, PenLine } from 'lucide-react-native';
+import { Settings, User, Beef, Plus, ChevronRight, Check, PenLine, Gift } from 'lucide-react-native';
 import { WalletDto, WALLET_PACKAGES, WalletPackageId, UserDto } from '@pawpals/shared';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../stores/auth';
@@ -220,6 +220,14 @@ export default function ProfileScreen() {
           >
             <Beef size={14} color="#000" />
             <Text style={{ color: '#000', fontSize: 13, fontWeight: '700' }}>儲值肉乾 · 立即補貨</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/(app)/redemptions')}
+            style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1c1c1e', borderRadius: 14, paddingVertical: 13, borderWidth: 0.5, borderColor: '#27272a' }}
+          >
+            <Gift size={14} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>肉乾兌換好禮</Text>
           </Pressable>
         </View>
 

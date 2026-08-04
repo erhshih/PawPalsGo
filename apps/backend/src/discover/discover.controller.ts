@@ -11,8 +11,9 @@ import { Prisma } from '@prisma/client';
 import { DiscoverService } from './discover.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import type { RequestUser } from '../auth/jwt.strategy';
-import { join } from 'path';
+import { extname } from 'path';
 
 class UpdateLocationDto {
   @IsLatitude()
@@ -67,7 +68,11 @@ const USER_SELECT = {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class DiscoverController {
-  constructor(private discoverService: DiscoverService, private prisma: PrismaService) {}
+  constructor(
+    private discoverService: DiscoverService,
+    private prisma: PrismaService,
+    private storageService: StorageService,
+  ) {}
 
   @Get('users/me')
   async getMe(@Req() req: { user: RequestUser }) {
@@ -97,19 +102,19 @@ export class DiscoverController {
 
   @Post('users/me/avatar')
   @UseInterceptors(FileInterceptor('file', {
-    dest: join(process.cwd(), 'uploads', 'avatars'),
     limits: { fileSize: 5 * 1024 * 1024 },
   }))
   async uploadAvatar(
     @UploadedFile() file: Express.Multer.File,
     @Req() req: { user: RequestUser },
   ) {
-    const relativePath = `/uploads/avatars/${file.filename}`;
+    const key = `avatars/${req.user.userId}/${Date.now()}${extname(file.originalname)}`;
+    const avatarUrl = await this.storageService.uploadBuffer(file.buffer, key, file.mimetype);
     await this.prisma.user.update({
       where: { id: req.user.userId },
-      data: { avatarUrl: relativePath },
+      data: { avatarUrl },
     });
-    return { avatarUrl: relativePath };
+    return { avatarUrl };
   }
 
   @Get('users/me/stats')

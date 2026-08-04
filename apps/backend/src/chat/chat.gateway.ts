@@ -57,11 +57,20 @@ export class ChatGateway implements OnGatewayConnection {
     const match = await this.prisma.match.findUnique({ where: { id: data.matchId } });
     if (!match) return;
 
+    const recipientId = match.userAId === userId ? match.userBId : match.userAId;
+    const blocked = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: userId, blockedId: recipientId },
+          { blockerId: recipientId, blockedId: userId },
+        ],
+      },
+    });
+    if (blocked) return;
+
     const message = await this.prisma.message.create({
       data: { matchId: data.matchId, senderId: userId, text: data.text },
     });
-
-    const recipientId = match.userAId === userId ? match.userBId : match.userAId;
     await this.redis.incr(`unread:${data.matchId}:${recipientId}`);
 
     this.server.to(`room:match-${data.matchId}`).emit('chat:message', message);

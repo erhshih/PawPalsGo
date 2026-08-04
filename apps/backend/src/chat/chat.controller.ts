@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { ChatGateway } from './chat.gateway';
+import { SafetyService } from '../safety/safety.service';
 import type { RequestUser } from '../auth/jwt.strategy';
 
 class SendMessageDto {
@@ -20,6 +21,7 @@ export class ChatController {
     private prisma: PrismaService,
     @Inject(REDIS_CLIENT) private redis: Redis,
     private chatGateway: ChatGateway,
+    private safetyService: SafetyService,
   ) {}
 
   @Get(':matchId/meeting')
@@ -63,6 +65,9 @@ export class ChatController {
   ) {
     const userId = req.user.userId;
     const match = await this.prisma.match.findUniqueOrThrow({ where: { id: matchId } });
+
+    const recipientIdForCheck = match.userAId === userId ? match.userBId : match.userAId;
+    await this.safetyService.assertNotBlocked(userId, recipientIdForCheck);
 
     const message = await this.prisma.message.create({
       data: { matchId, senderId: userId, text: dto.text },

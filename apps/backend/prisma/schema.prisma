@@ -38,12 +38,30 @@ enum WalletTransactionType {
   CREDIT
   ESCROW
   ESCROW_RELEASE
+  TIP_SENT
+  TIP_RECEIVED
+  REDEMPTION
 }
 
 enum PhotoKind {
   closeup
   owner
   bw
+}
+
+enum ReportReason {
+  HARASSMENT
+  FAKE_PROFILE
+  INAPPROPRIATE_CONTENT
+  SCAM
+  SPAM
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
 }
 
 model User {
@@ -76,6 +94,18 @@ model User {
   wallet             Wallet?
   walletTransactions WalletTransaction[]
   meetingsInitiated  Meeting[]
+  posts              Post[]
+  postLikes          PostLike[]
+  postComments       PostComment[]
+  tipsSent           PostTip[]           @relation("tipSender")
+  tipsReceived       PostTip[]           @relation("tipRecipient")
+  meetupsOrganized   DogMeetup[]         @relation("meetupOrganizer")
+  meetupsJoined      DogMeetupAttendee[]
+  redemptions        Redemption[]
+  blocksMade         Block[]             @relation("blocker")
+  blocksReceived     Block[]             @relation("blocked")
+  reportsMade        Report[]            @relation("reporter")
+  reportsReceived    Report[]            @relation("reportTarget")
 }
 
 model Pet {
@@ -89,7 +119,9 @@ model Pet {
   birthDate DateTime?
   createdAt DateTime  @default(now())
 
-  photos Photo[]
+  photos         Photo[]
+  posts          Post[]
+  meetupAttendee DogMeetupAttendee[]
 }
 
 model Photo {
@@ -171,4 +203,147 @@ model WalletTransaction {
   createdAt       DateTime              @default(now())
 
   user User @relation(fields: [userId], references: [id])
+}
+
+// 貼文牆：配對前的探索層，不是通用社群動態。內容依地理位置篩選（見 PostsService），
+// 而抖內（PostTip）是唯一能讓贈送者的個人介紹被貼文作者看到的管道。
+model Post {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  petId     String?
+  pet       Pet?     @relation(fields: [petId], references: [id])
+  caption   String?
+  createdAt DateTime @default(now())
+
+  photos   PostPhoto[]
+  likes    PostLike[]
+  comments PostComment[]
+  tips     PostTip[]
+  reports  Report[]
+}
+
+model PostPhoto {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int
+  createdAt DateTime @default(now())
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  text      String
+  createdAt DateTime @default(now())
+}
+
+// 抖內紀錄本身就是「授權貼文作者查看贈送者個人介紹」的權限清單，見 PostsService#getTippers。
+model PostTip {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User     @relation("tipSender", fields: [senderId], references: [id])
+  recipientId String
+  recipient   User     @relation("tipRecipient", fields: [recipientId], references: [id])
+  amount      Int
+  createdAt   DateTime @default(now())
+}
+
+// 狗聚：群體揪團，不需要一對一互相配對，門檻比 Swipe/Match 低很多，用來緩解早期候選人少的問題。
+model DogMeetup {
+  id           String    @id @default(uuid())
+  organizerId  String
+  organizer    User      @relation("meetupOrganizer", fields: [organizerId], references: [id])
+  title        String
+  description  String?
+  location     String
+  latitude     Float?
+  longitude    Float?
+  scheduledAt  DateTime
+  maxAttendees Int?
+  cancelledAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  attendees DogMeetupAttendee[]
+}
+
+model DogMeetupAttendee {
+  id       String   @id @default(uuid())
+  meetupId String
+  meetup   DogMeetup @relation(fields: [meetupId], references: [id])
+  userId   String
+  user     User      @relation(fields: [userId], references: [id])
+  petId    String?
+  pet      Pet?      @relation(fields: [petId], references: [id])
+  joinedAt DateTime  @default(now())
+
+  @@unique([meetupId, userId])
+}
+
+// 肉乾兌換：封閉迴圈，肉乾只能兌換品牌合作的實體商品兌換碼，絕不能換回現金。
+model RedemptionReward {
+  id          String   @id @default(uuid())
+  partnerName String
+  title       String
+  description String?
+  imageUrl    String?
+  costJerky   Int
+  stock       Int?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  redemptions Redemption[]
+}
+
+model Redemption {
+  id         String   @id @default(uuid())
+  rewardId   String
+  reward     RedemptionReward @relation(fields: [rewardId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  code       String
+  redeemedAt DateTime @default(now())
+}
+
+// 封鎖：discover/swipe/chat 都要互相排除，見對應 service 裡的整合。
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id])
+  blockedId String
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  reporter   User         @relation("reporter", fields: [reporterId], references: [id])
+  targetId   String
+  target     User         @relation("reportTarget", fields: [targetId], references: [id])
+  reason     ReportReason
+  detail     String?
+  postId     String?
+  post       Post?        @relation(fields: [postId], references: [id])
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
 }

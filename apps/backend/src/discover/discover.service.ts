@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SafetyService } from '../safety/safety.service';
 
 const USER_CARD_SELECT = {
   id: true, email: true, role: true, gender: true, displayName: true,
@@ -21,7 +22,10 @@ function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): num
 
 @Injectable()
 export class DiscoverService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private safetyService: SafetyService,
+  ) {}
 
   async updateLocation(userId: string, lat: number, lng: number) {
     await this.prisma.user.update({
@@ -59,9 +63,10 @@ export class DiscoverService {
       select: { targetId: true },
     });
     const swipedIds = swipes.map((s) => s.targetId);
+    const blockedIds = await this.safetyService.getBlockedUserIds(userId);
 
     const where: Prisma.UserWhereInput = {
-      id: { not: userId, notIn: swipedIds },
+      id: { not: userId, notIn: [...swipedIds, ...blockedIds] },
       latitude: { not: null },
       longitude: { not: null },
       ...(genderFilter.length > 0 && genderFilter.length < 3

@@ -1,12 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Image, Dimensions, Modal } from 'react-native';
+import { View, Text, Pressable, Image, Dimensions, Modal, Alert } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withSpring, withTiming,
   runOnJS, interpolate, Extrapolation,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Heart, Star, Sliders, Beef, MapPin, Check, MessageCircle, User } from 'lucide-react-native';
+import { X, Heart, Star, Sliders, Beef, MapPin, Check, MessageCircle, User, EllipsisVertical } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { DiscoverResultDto, MatchDto, UserDto } from '@pawpals/shared';
@@ -229,6 +229,33 @@ export default function SwipeDeckScreen() {
     } catch {}
   }
 
+  function openSafetyMenu() {
+    if (!queue[0]) return;
+    const target = queue[0];
+    Alert.alert(target.displayName ?? target.email, undefined, [
+      { text: '檢舉', onPress: () => router.push({ pathname: '/(app)/report/create', params: { targetId: target.id } }) },
+      {
+        text: '封鎖', style: 'destructive',
+        onPress: () => {
+          Alert.alert('封鎖此使用者', '封鎖後你們將不會再看到彼此，也無法互傳訊息。確定要封鎖嗎？', [
+            { text: '取消', style: 'cancel' },
+            {
+              text: '封鎖', style: 'destructive',
+              onPress: async () => {
+                try {
+                  await api.post(`/blocks/${target.id}`);
+                  show('已封鎖', 'success');
+                  advance();
+                } catch { show('操作失敗，請稍後再試'); }
+              },
+            },
+          ]);
+        },
+      },
+      { text: '取消', style: 'cancel' },
+    ]);
+  }
+
   async function sendTreat() {
     if (!queue[0]) return;
     if (balance < 1) { show('肉乾不足，請先儲值'); setIap(false); return; }
@@ -428,6 +455,16 @@ export default function SwipeDeckScreen() {
           >
             <Sliders size={15} color="#fff" />
           </Pressable>
+
+          {/* 檢舉 / 封鎖 選單 — 疊在照片右上角 */}
+          {top && (
+            <Pressable
+              onPress={openSafetyMenu}
+              style={{ position: 'absolute', top: 12, right: 12, zIndex: 100, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(28,28,30,0.55)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <EllipsisVertical size={15} color="#fff" />
+            </Pressable>
+          )}
         </View>
 
         {/* 按鈕列 — 在卡片圓角框內，固定不動（不在 GestureDetector 裡） */}

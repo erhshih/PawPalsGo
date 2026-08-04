@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { ChatGateway } from '../chat/chat.gateway';
+import { SafetyService } from '../safety/safety.service';
 
 @Injectable()
 export class SwipeService {
@@ -11,9 +12,12 @@ export class SwipeService {
     private prisma: PrismaService,
     @Inject(REDIS_CLIENT) private redis: Redis,
     private chatGateway: ChatGateway,
+    private safetyService: SafetyService,
   ) {}
 
   async swipe(swiperId: string, targetUserId: string, direction: string) {
+    await this.safetyService.assertNotBlocked(swiperId, targetUserId);
+
     await this.prisma.swipe.upsert({
       where: { swiperId_targetId: { swiperId, targetId: targetUserId } },
       create: { swiperId, targetId: targetUserId, direction: direction as any },

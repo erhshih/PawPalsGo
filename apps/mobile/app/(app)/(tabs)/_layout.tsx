@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Compass, MessageCircle, User } from 'lucide-react-native';
+import { Compass, MessageCircle, User, Newspaper } from 'lucide-react-native';
 import { useUnreadStore } from '../../../stores/unread';
 
 export default function TabsLayout() {
@@ -40,6 +40,15 @@ export default function TabsLayout() {
           title: '探索',
           tabBarIcon: ({ color, focused }) => (
             <Compass size={20} color={color} strokeWidth={focused ? 2 : 1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="feed"
+        options={{
+          title: '動態',
+          tabBarIcon: ({ color, focused }) => (
+            <Newspaper size={20} color={color} strokeWidth={focused ? 2 : 1.5} />
           ),
         }}
       />

@@ -5,13 +5,13 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CreatePetDto } from './dto/create-pet.dto';
-import * as fs from 'fs';
-import * as path from 'path';
+import { extname } from 'path';
 
 @Injectable()
 export class PetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private storageService: StorageService) {}
 
   async create(dto: CreatePetDto, ownerId: string) {
     return this.prisma.pet.create({
@@ -53,7 +53,8 @@ export class PetsService {
     if (pet.ownerId !== userId) throw new ForbiddenException();
     if (pet.photos.length >= 5) throw new UnprocessableEntityException('MAX_PHOTOS_REACHED');
 
-    const url = `/uploads/pets/${petId}/${file.filename}`;
+    const key = `pets/${petId}/${Date.now()}${extname(file.originalname)}`;
+    const url = await this.storageService.uploadBuffer(file.buffer, key, file.mimetype);
     return this.prisma.photo.create({
       data: { petId, url, kind: kind as any, sortOrder },
     });
@@ -67,8 +68,8 @@ export class PetsService {
     const photo = await this.prisma.photo.findUnique({ where: { id: photoId } });
     if (!photo) throw new NotFoundException('PHOTO_NOT_FOUND');
 
-    const filePath = path.join(process.cwd(), photo.url);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const key = this.storageService.keyFromUrl(photo.url);
+    if (key) await this.storageService.deleteObject(key);
 
     return this.prisma.photo.delete({ where: { id: photoId } });
   }

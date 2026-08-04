@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
 import { useUnreadStore } from '@/stores/unread';
-import { Heart, MessageCircle, User } from 'lucide-react';
+import { Heart, MessageCircle, User, Newspaper } from 'lucide-react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -36,6 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex">
             {[
               { href: '/swipe', icon: Heart, label: '探索' },
+              { href: '/feed', icon: Newspaper, label: '動態' },
               { href: '/chat', icon: MessageCircle, label: '訊息' },
               { href: '/profile', icon: User, label: '我的' },
             ].map(({ href, icon: Icon, label }) => {

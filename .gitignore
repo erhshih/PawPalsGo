@@ -28,3 +28,4 @@ pnpm-debug.log*
 
 # ── 上傳檔案（本機暫存，不需要版本控制）────────────
 apps/backend/uploads
+.expo/web/
